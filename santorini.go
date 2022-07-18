@@ -5,6 +5,8 @@ import (
 	"strconv"
 )
 
+var ply bool
+
 type Position struct {
 	B1 int32
 	B2 int32
@@ -303,22 +305,44 @@ func updatePosition(p Position, m moveBuild) Position {
 func printABMoves(position Position) Position {
 	movesA := legalMoveBuilds(position, position.A)
 	movesB := legalMoveBuilds(position, position.B)
+	movesX := legalMoveBuilds(position, position.X)
+	movesY := legalMoveBuilds(position, position.Y)
 
 	// Test
-	fmt.Printf("\nMove A:\n")
-	for i, move := range movesA {
-		fmt.Printf("%v: %v|%v\t", i+100, move.move, move.build)
-		if i%5 == 0 && i > 0 {
-			fmt.Printf("\n")
+	if ply {
+		fmt.Printf("\nMove A:\n")
+		for i, move := range movesA {
+			fmt.Printf("%v: %v|%v\t", i+100, move.move, move.build)
+			if i%5 == 0 && i > 0 {
+				fmt.Printf("\n")
+			}
 		}
-	}
 
-	fmt.Printf("\nMove B:\n")
-	for i, move := range movesB {
-		fmt.Printf("%v: %v|%v\t", i+200, move.move, move.build)
-		if i%5 == 0 && i > 0 {
-			fmt.Printf("\n")
+		fmt.Printf("\nMove B:\n")
+		for i, move := range movesB {
+			fmt.Printf("%v: %v|%v\t", i+200, move.move, move.build)
+			if i%5 == 0 && i > 0 {
+				fmt.Printf("\n")
+			}
 		}
+	} else {
+
+		fmt.Printf("\nMove X:\n")
+		for i, move := range movesX {
+			fmt.Printf("%v: %v|%v\t", i+100, move.move, move.build)
+			if i%5 == 0 && i > 0 {
+				fmt.Printf("\n")
+			}
+		}
+
+		fmt.Printf("\nMove Y:\n")
+		for i, move := range movesY {
+			fmt.Printf("%v: %v|%v\t", i+200, move.move, move.build)
+			if i%5 == 0 && i > 0 {
+				fmt.Printf("\n")
+			}
+		}
+
 	}
 
 	var input string
@@ -328,24 +352,31 @@ func printABMoves(position Position) Position {
 		var err error
 		i, err = strconv.Atoi(input)
 		if err != nil {
-            panic(err)
+			panic(err)
 		}
 		break
 	}
 
 	if i >= 200 {
 		i -= 200
-		return updatePosition(position, movesB[i])
+		if ply {
+			return updatePosition(position, movesB[i])
+		}
+		return updatePosition(position, movesY[i])
 
 	} else {
 		i -= 100
-		return updatePosition(position, movesA[i])
+		if ply {
+			return updatePosition(position, movesA[i])
+		}
+		return updatePosition(position, movesX[i])
 	}
-    fmt.Printf("Returned from print moves")
+	fmt.Printf("Returned from print moves")
 	return position
 }
 
 func main() {
+	ply = true
 	startPosition := Position{
 		0x1FAB212, 0x182A212, 0x102A012, 0x1020002,
 		occupancy[11],
@@ -362,5 +393,6 @@ func main() {
 		render(position)
 		// Move piece A logic
 		position = printABMoves(position)
+		ply = !ply
 	}
 }
