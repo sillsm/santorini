@@ -14,9 +14,21 @@ func TestPositionToString(t *testing.T) {
 	}
 
 	got := testPosition1.String()
-	want := "St|040030000200A1B3030X4Y0111124|End"
+	want := "|0400300002001303040111124|11121617|"
 
 	if got != want {
 		t.Errorf("got %q, wanted %q", got, want)
 	}
+}
+
+func TestNewPosition(t *testing.T) {
+  position, e := NewPosition("|0400300002001303040111124|08050018|")
+  if e != nil{
+    t.Errorf("Error forming position")
+  }
+  got := position.String()
+  want := "|0400300002001303040111124|08050018|"
+  if got != want {
+	t.Errorf("\ngot\t\t\t%q\n, wanted \t%q", got, want)
+  }
 }
