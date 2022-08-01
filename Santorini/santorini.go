@@ -1,5 +1,10 @@
 package Santorini
 
+import(
+  "fmt"
+  "strings"
+  "strconv"
+)
 
 type Position struct {
 	B1 int32
@@ -104,48 +109,55 @@ func render(p Position) string {
 	const tileNum = 5
 	const gridSize = tileSize * tileNum
 
-  out += "St|"
-	for i := 0; i < 25; i++ {
-        tile := "0"
-				if b1%2 == 1 {
-				tile = "1"
-				}
-				if b2%2 == 1 {
-				tile =  "2"
-				}
-				if b3%2 == 1 {
-				tile =  "3"
-				}
-				if b4%2 == 1 {
-				tile =  "4"
-				}
+	out += "|"
 
-				if a%2 == 1 {
-				tile += "A"
-				}
-				if b%2 == 1 {
-				tile +=  "B"
-				}
-				if x%2 == 1 {
-				tile +=  "X"
-				}
-				if y%2 == 1 {
-				tile +=  "Y"
-				}
-        
-        out += tile
-				b1 = b1 >> 1
-				b2 = b2 >> 1
-				b3 = b3 >> 1
-				b4 = b4 >> 1
-    		a = a >> 1
-				b = b >> 1
-				x = x >> 1
-				y = y >> 1
-				continue
+	var piecePlacement [4]int
+	for i := 0; i < 25; i++ {
+		tile := "0"
+		if b1%2 == 1 {
+			tile = "1"
+		}
+		if b2%2 == 1 {
+			tile = "2"
+		}
+		if b3%2 == 1 {
+			tile = "3"
+		}
+		if b4%2 == 1 {
+			tile = "4"
 		}
 
-  out += "|End"
+		if a%2 == 1 {
+			piecePlacement[0] = i
+		}
+		if b%2 == 1 {
+			piecePlacement[1] = i
+		}
+		if x%2 == 1 {
+			piecePlacement[2] = i
+		}
+		if y%2 == 1 {
+			piecePlacement[3] = i
+		}
+
+		out += tile
+		b1 = b1 >> 1
+		b2 = b2 >> 1
+		b3 = b3 >> 1
+		b4 = b4 >> 1
+		a = a >> 1
+		b = b >> 1
+		x = x >> 1
+		y = y >> 1
+		continue
+	}
+
+	pieces := fmt.Sprintf("%02d", piecePlacement)
+	pieces = strings.Replace(pieces, "[", "", -1)
+	pieces = strings.Replace(pieces, "]", "", -1)
+	pieces = strings.Replace(pieces, " ", "", -1)
+	out += "|" + pieces
+	out += "|"
 
 	return out
 
@@ -153,4 +165,56 @@ func render(p Position) string {
 
 func (p Position) String() string {
 	return render(p)
+}
+
+// Stringified positions take the form
+// |0400300002001303040111124|08050018|
+// 25 ints from 0 to 4 representing the heights
+// of the 25 board squares.
+//
+// Then 4 ints (of format 00), representing position of
+// White's first and second piece, then
+// Black's first and second piece.
+// Note that white and black's pieces are interchangeable.
+// We should probably require the position go from 
+// low to high as another integrity check
+func NewPosition(s string) (Position, error) {
+  // Position
+  if len (s) != 36{
+    panic("string integrity check fail, position incorrect length")
+  }
+  p := Position{}
+
+  for i := 1; i < 26; i++{
+    height := s[i]
+    var mask int32
+    mask = 1 << (i -1)
+    if height == '1' {
+      p.B1 |= mask
+    }
+    if height == '2' {
+      p.B2 |= mask
+    }
+    if height == '3' {
+      p.B3 |= mask
+    }
+    if height == '4' {
+      p.B4 |= mask
+    }
+  }
+  var err error
+  whiteOne, err := strconv.Atoi(s[27:29])
+  whiteTwo, err := strconv.Atoi(s[29:31])
+  blackOne, err := strconv.Atoi(s[31:33])
+  blackTwo, err := strconv.Atoi(s[33:35])
+	
+  if err != nil{
+    panic("string integrity check fail, can't decode piece position")
+  }
+  p.A = occupancy[whiteOne]
+  p.B = occupancy[whiteTwo]
+  p.X = occupancy[blackOne]
+  p.Y = occupancy[blackTwo]
+  
+  return p, nil
 }
