@@ -26,6 +26,15 @@ type MoveBuild struct {
 	Piece bool // Does their first or second piece move
 }
 
+// Interface for the game tree search, so we can make mocks against it.
+type GameNode interface {
+  Children() []GameNode
+  String() string
+  // 'W', 'B', or '?'
+  Outcome() rune
+  WhichPly() bool //who's turn is it
+}
+
 // Single bit piece occupancy masks.
 var occupancy []int32 = []int32{
 	1,
@@ -264,6 +273,8 @@ func UpdatePosition(p Position, b MoveBuild) Position {
 	if p.X > p.Y {
 		p.X, p.Y = p.Y, p.X
 	}
+  //Flip whose turn it is
+  p.Ply = !p.Ply
 	return p
 }
 
@@ -340,6 +351,11 @@ func legalBuildMoves(p Position) []MoveBuild {
 		} else {
 			testPiece.X = m
 		}
+    legalbuilds := legalBuilds(testPiece, m)
+    // Don't consider a move if there are no builds from it.
+    if len(legalbuilds) == 0 {
+      continue
+    }
 		for _, b := range legalBuilds(testPiece, m) {
 			ret = append(ret, MoveBuild{m, b, p.Ply, false})
 		}
@@ -351,9 +367,162 @@ func legalBuildMoves(p Position) []MoveBuild {
 		} else {
 			testPiece.Y = m
 		}
+    // Don't consider a move if there are no builds from it.
+    legalbuilds := legalBuilds(testPiece, m)
+    if len(legalbuilds) == 0 {
+      continue
+    }
 		for _, b := range legalBuilds(testPiece, m) {
 			ret = append(ret, MoveBuild{m, b, p.Ply, true})
 		}
 	}
 	return ret
+}
+
+/*
+ Make sure the position implements the GameNode interface
+*/
+
+func (p Position) Children()[]GameNode{
+  var pp []GameNode
+  for _, mb := range legalBuildMoves(p) {
+    updated := UpdatePosition(p, mb)
+    pp = append(pp, updated)
+  }
+  return pp
+}
+
+func (p Position) Outcome() rune {
+  // if it's my turn, one of my pieces is on a 2, and can move to a 3, I win.
+  // Or, if either side can either not build or not move, I win.
+  // If I can't build or move, I lose.
+  lbm := legalBuildMoves(p)
+  if len(lbm) == 0 {
+    //panic("No legal moves")
+    if !p.Ply {
+      return 'B'
+    } else {
+      return 'W'
+    }
+  }
+
+  for _, move := range lbm{
+    if (move.Move & p.B3) > 0 {
+      if !p.Ply {
+        return 'W'
+      } else {
+        return 'B'
+      }
+    }
+  }
+  return '?'
+}
+
+func (p Position) WhichPly() bool{
+  return p.Ply
+}
+
+
+/*
+Code to explore the game tree.
+*/
+func ExploreNode(gn GameNode) map[string]rune{
+  m := make(map[string]rune)
+
+  limit := 0
+  shortest := "|4444444444444444444444444|00082324|?"
+
+  var f func(n GameNode)rune
+  f = func(n GameNode)rune{
+     if limit % 100000 == 0{
+       fmt.Printf("%v\tsolved:%v\tshortest:%v\n",limit, len(m), shortest)
+     }
+     limit++
+
+     // Did I see this state before? If so, stop exploring it and descendants and
+     // return what I know about it.
+     if val,ok := m[n.String()]; ok{
+       return val
+     }
+
+    // Check my outcome and return it if I'm a leaf node
+    if o := n.Outcome(); (o == 'W') || (o == 'B'){
+    //  fmt.Printf("\nHit a leaf %v, with outcome %v", n.String(), string(o))
+      m[n.String()]=o
+      return o
+    }
+    // So I'm not a leaf node.
+    childOutcomes := make(map[rune]int)
+    for _, c := range n.Children(){
+
+      //fmt.Printf("\nDFS: %v %v\n", c.String(), c.WhichPly())
+      outcome := f(c)
+    //  fmt.Printf("\nOutcome came back as %v, ply:%v", string(outcome), !n.WhichPly())
+      //fmt.Printf("\nSanity check %v %v, ", !n.WhichPly(), (outcome == 'B'))
+      childOutcomes[outcome] += 1
+
+
+      // If this child's outcome is one I would certainly
+      // pick because it's my turn and I can to win, assume I will.
+      // Stop searching
+      if (!n.WhichPly() && (outcome == 'W')) || (n.WhichPly() && (outcome == 'B')){
+        m[n.String()]=outcome
+        if n.String() < shortest{
+          shortest = n.String()  + string(outcome)
+        }
+        return outcome
+      }
+
+      //outcome := c.Outcome()
+      //rep     := c.String()
+      //fmt.Printf("%v%v\n", rep, string(outcome))
+      // Did I see this state before? If so, stop exploring it and descendants.
+      //if _,ok := m[c.String()]; ok{
+      //  continue
+      //}
+
+      // If this child's outcome is one I would certainly
+      // pick because of parity, make it my outcome,
+      // and stop exploring.
+
+      // If this child's outcome is one that I would certainly
+      // not pick, don't explore it further.
+      //if (n.WhichPly() && (outcome == 'W')) || (!n.WhichPly() && (outcome == 'B')){
+      //  m[n.String()]=outcome
+      //  continue
+      //}
+      /*
+
+      if (!n.WhichPly() && (outcome == 'W')) || (n.WhichPly() && (outcome == 'B')){
+      if (!n.WhichPly() && (outcome == 'W')) {
+        panic("FUCK YOU")
+        m[n.String()]=outcome
+        return outcome
+      }
+
+      // If this child's outcome is one that I would certainly
+      // not pick, don't explore it further.
+      if (n.WhichPly() && (outcome == 'W')) || (!n.WhichPly() && (outcome == 'B')){
+        m[n.String()]=outcome
+        continue
+      }*/
+    }
+    //fmt.Printf("\n\n\n\n\n\nChild outcomes for this level %v\n", n.String())
+    for k, _ := range childOutcomes{
+      //fmt.Printf("\n%v|%v", string(k), v)
+      // If this is a clear win or loss
+      if len(childOutcomes) == 1{
+        return k
+      }
+    }
+    return 'Z'
+  }
+  //fmt.Printf("\nStart node:\n%v\n", gn.String())
+  f(gn)
+  //SUMMARY
+  //fmt.Printf("Final summary\n")
+  //for k, v := range m {
+    //fmt.Printf("\n%v %v", k, string(v) )
+  //}
+  return m
 }
