@@ -1,7 +1,7 @@
 package Santorini
 
 import (
-	//"fmt"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -157,6 +157,7 @@ func TestLegalBuildMovesWhite(t *testing.T) {
 	if !reflect.DeepEqual(want, got) {
 		t.Fatalf("\nexpected: \n%v, \ngot: \n%v", want, got)
 	}
+
 }
 
 func TestLegalBuildMovesBlack(t *testing.T) {
@@ -212,6 +213,16 @@ func TestLegalBuildMovesBlack(t *testing.T) {
 	if !reflect.DeepEqual(want, got) {
 		t.Fatalf("\nexpected: \n%v, \ngot: \n%v", want, got)
 	}
+
+	// Now make sure a winning position doesn't produce child states.
+	position, e = NewPosition("|1002000100443440022100001|01081723|")
+	if e != nil {
+		t.Errorf("Error forming position")
+	}
+	c := position.Children()
+	if len (c) != 0{
+		t.Fatalf("\nexpected: \n%v, \ngot: \n%v", 0, got)
+	}
 }
 
 // Mock for game node exploration for a two person game
@@ -226,7 +237,7 @@ func (m MockGameNode) Children() {
 	}
 	fakeData = fakeData
 }
-
+/*
 func TestGameNodeExploration(t *testing.T) {
 	// helper function to sort game results
 	clean := func(m map[string]rune)[]string{
@@ -284,7 +295,7 @@ func TestGameNodeExploration(t *testing.T) {
 		"|2230000000001000000000000|01081824|W",
 		"|2230000000010000000000000|01081724|W",
 	}
-	got := ExploreNode(position)
+	got := ExploreNode(position, 0)
 	if !reflect.DeepEqual(want, clean(got)) {
 		t.Fatalf("\nexpected: \n%v, \ngot: \n%v", want, clean(got))
 	}
@@ -1364,21 +1375,68 @@ func TestGameNodeExploration(t *testing.T) {
 	}
 
   //fmt.Printf("ASDSAD\n")
-	got = ExploreNode(position)
+	got = ExploreNode(position, 0)
 	//for _, s := range clean(got){
 	//	fmt.Printf("\n\"%v\",",s)
 	//}
 	if !reflect.DeepEqual(want, clean(got)) {
 		t.Fatalf("\nexpected: \n%v, \ngot: \n%v", want, clean(got))
 	}
-}
-
+}*/
+/*
 func TestReal1(t *testing.T) {
+	pp, _ := NewPosition("|2200000110444332000000001|00071620|")
+	fmt.Printf("First Sanity check %v %v %v\n" , pp.String(), string(pp.Outcome()), pp.WhichPly())
 	// Black should win every time because it's their move
+	//position, e := NewPosition("|0000000000333330000000000|00082324|")
 	position, e := NewPosition("|0000000000333330000000000|00082324|")
 	if e != nil {
 		t.Errorf("Error forming position")
 	}
-	got := ExploreNode(position)
+	got := ExploreNode(position, 0)
+	val, _ := got["|0000000000333330000000000|00082324|"]
+	fmt.Printf("\nFinal solve: %v", string(val))
 	got=got
+}*/
+
+func TestScore1(t *testing.T){
+
+	//position, e := NewPosition("|0012000100443440022100001|02081823|")
+
+/*
+10020
+00100
+44344
+00221
+00001
+*/
+	position, e := NewPosition("|0102000100443440032100000|00081922|")
+	//position, e := NewPosition("|1102000100443440022100000|00081923|")
+	fmt.Printf("Outcome %v ,\n", string(position.Outcome()))
+	if e != nil {
+		t.Errorf("Error forming position")
+	}
+	//x := ExploreNode(position, 0)
+	//fmt.Printf("\nFinal map for %v\n %v \n", position.String(), x)
+	children := position.Children()
+
+
+
+			//fmt.Printf("About to consider my children, %v\n", len(n.Children()))
+			sort.Slice(children, func(p, q int) bool {
+				pScore, pmindepth := children[p].Score()
+				qScore, qmindepth := children[q].Score()
+				if (pScore == qScore){
+						return pmindepth < qmindepth
+				}
+				return pScore > qScore})
+
+			for _, l := range children{
+				fmt.Printf("\n------------------------\n")
+				score, depth := l.Score()
+				fmt.Printf("\nChild %v, score %v, %v, mindepth: %v\n" , l.String(), score, l.WhichPly(), depth)
+				//fmt.Printf("\nChild %v, score %v, %v\n" , l.String(), score, l.WhichPly())
+			}
+
+
 }

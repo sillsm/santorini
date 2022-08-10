@@ -2,6 +2,7 @@ package Santorini
 
 import (
 	"fmt"
+  "sort"
 	"strconv"
 	"strings"
 )
@@ -33,6 +34,7 @@ type GameNode interface {
   // 'W', 'B', or '?'
   Outcome() rune
   WhichPly() bool //who's turn is it
+  Score()(int,int) //position score, for the player whose turn it is
 }
 
 // Single bit piece occupancy masks.
@@ -387,6 +389,10 @@ func (p Position) Children()[]GameNode{
   var pp []GameNode
   for _, mb := range legalBuildMoves(p) {
     updated := UpdatePosition(p, mb)
+    // If any of the moves are a win, that's it. Return no children.
+    if (mb.Move & updated.B3) > 0 {
+      return nil
+    }
     pp = append(pp, updated)
   }
   return pp
@@ -422,41 +428,169 @@ func (p Position) WhichPly() bool{
   return p.Ply
 }
 
+// Give a score for White and Black
+func (p Position)Score() (int, int){
+  // See out the first 1000 outcomes from here.
+  m, depth := ShallowExploreNode(p, 100)
+  w := 0
+  b := 0
+  //fmt.Printf("The score sheet I saw %v\n", m)
+  for _, v := range m{
+    if v == 'W'{
+      w++
+    }
+    if v == 'B'{
+      b++
+    }
+  }
+  // NOTE! Usually a ply is bool 0 for White to move and 1 for Black to move.
+  // However, we usually check children of a node for their scores, and in
+  // that case, they should have the same ply as their parent node, until
+  // they've *actually been chosen* as a path to go down.
+  if p.Ply {
+    return w-b, depth
+  }
+  return b-w, depth
+}
+
+/*
+Shallow ExploreNode is a BFS.
+Find the first leafLimit bfs outcomes.
+*/
+// 21020 00100 44344 00231 00010 |01081924| false ?
+func ShallowExploreNode(gn GameNode, leafLimit int) (map[string]rune, int){
+  depth := 0
+  shallowestDepth := 100
+  currentGeneration := 1
+  nextGeneration := 0
+
+  exploreLimit := 10000
+  explored := 0
+  m := make(map[string]rune)
+  var toExplore []GameNode
+  toExplore = append(toExplore, gn)
+
+  for (len(toExplore)>0 ){
+     var pop GameNode
+     explored++
+     pop, toExplore = toExplore[0], toExplore[1:]
+
+     // Now, get the deets on the head node.
+     if o := pop.Outcome(); (o == 'W') || (o == 'B'){
+      //fmt.Printf("\nHit a leaf %v, with outcome %v", pop.String(), string(o))
+     //fmt.Printf("\n%v", n.String()+string(o))
+       m[pop.String()]=o
+       if depth < shallowestDepth{
+         shallowestDepth = depth
+       }
+
+     }
+
+     // See if it's time to bail
+     if len(m) > leafLimit{
+       break
+     }
+     if explored > exploreLimit{
+       break
+     }
+
+     // Otherwise, get the children and add them to the list to inspect
+     for _, child := range pop.Children(){
+       toExplore = append(toExplore, child)
+       nextGeneration++
+     }
+
+     currentGeneration = currentGeneration - 1
+     if (currentGeneration == 0){
+        depth++
+        currentGeneration = nextGeneration
+      }
+  }
+
+  // After search stuff
+  return m, shallowestDepth
+}
 
 /*
 Code to explore the game tree.
 */
-func ExploreNode(gn GameNode) map[string]rune{
+func ExploreNode(gn GameNode, leafLimit int) map[string]rune{
   m := make(map[string]rune)
+  // Don't forget, this is PLY depth. so White and black moves combined
+  //  maxDepth := 6
 
   limit := 0
-  shortest := "|4444444444444444444444444|00082324|?"
 
-  var f func(n GameNode)rune
-  f = func(n GameNode)rune{
+  var f func(n GameNode, d int)rune
+  f = func(n GameNode, d int)rune{
      if limit % 100000 == 0{
-       fmt.Printf("%v\tsolved:%v\tshortest:%v\n",limit, len(m), shortest)
+       //fmt.Printf("%v\tsolved:%v\tshortest:%v\n",limit, len(m), shortest)
+       fmt.Printf("Limit: %v Depth %v \t State:%v|%v\n", limit, d, n.String(),string(n.Outcome()))
      }
-     limit++
+       // Leaf Limit
+       if leafLimit > 0 {
+         if len(m) > leafLimit {
+           return '?'
+         }
+       }
+
 
      // Did I see this state before? If so, stop exploring it and descendants and
      // return what I know about it.
      if val,ok := m[n.String()]; ok{
        return val
      }
+     limit++
+
 
     // Check my outcome and return it if I'm a leaf node
     if o := n.Outcome(); (o == 'W') || (o == 'B'){
-    //  fmt.Printf("\nHit a leaf %v, with outcome %v", n.String(), string(o))
+      //fmt.Printf("\nHit a leaf %v, with outcome %v", n.String(), string(o))
+    //fmt.Printf("\n%v", n.String()+string(o))
       m[n.String()]=o
       return o
     }
     // So I'm not a leaf node.
     childOutcomes := make(map[rune]int)
-    for _, c := range n.Children(){
 
-      //fmt.Printf("\nDFS: %v %v\n", c.String(), c.WhichPly())
-      outcome := f(c)
+    children := n.Children()
+    if leafLimit == 0 {
+
+        //fmt.Printf("About to consider my children, %v\n", len(n.Children()))
+        sort.Slice(children, func(p, q int) bool {
+          pScore, pmindepth := children[p].Score()
+          qScore, qmindepth := children[q].Score()
+          if (pScore == qScore){
+              return pmindepth < qmindepth
+          }
+          return pScore > qScore})
+        //fmt.Printf("------------------------\n")
+        //for _, l := range children{
+          //l=l
+          //fmt.Printf("Child %v, score %v, %v\n" , l.String(), l.Score(), l.WhichPly())
+        }
+
+
+    //fmt.Printf("Candidate moves and score:")
+  //  for _, c := range children{
+  //    fmt.Printf("\n%v %v", c, c.Score())
+
+    //}
+    //fmt.Printf("\n")
+
+
+    for i, c := range children{
+      //if (i == 0) && (leafLimit ==0){
+      //  fmt.Printf("I CHOOSE %v | %v | %v | %v \n", c.String(), c.WhichPly(), len(m), string(c.Outcome()))
+      //}
+      // Best-only choice
+      if i > 0 && (leafLimit == 0){
+        continue
+      }
+      fmt.Printf("Going to: %v %v %v\n", c.String(), c.WhichPly(), string(c.Outcome()))
+      // Recurse here
+      outcome := f(c, d+1)
+      //fmt.Printf("State:%v\n", c.String())
     //  fmt.Printf("\nOutcome came back as %v, ply:%v", string(outcome), !n.WhichPly())
       //fmt.Printf("\nSanity check %v %v, ", !n.WhichPly(), (outcome == 'B'))
       childOutcomes[outcome] += 1
@@ -467,15 +601,12 @@ func ExploreNode(gn GameNode) map[string]rune{
       // Stop searching
       if (!n.WhichPly() && (outcome == 'W')) || (n.WhichPly() && (outcome == 'B')){
         m[n.String()]=outcome
-        if n.String() < shortest{
-          shortest = n.String()  + string(outcome)
-        }
         return outcome
       }
 
       //outcome := c.Outcome()
       //rep     := c.String()
-      //fmt.Printf("%v%v\n", rep, string(outcome))
+      //fmt.Printf("%v%v|%v|%v\n", rep, string(outcome), c.Score(), c.WhichPly())
       // Did I see this state before? If so, stop exploring it and descendants.
       //if _,ok := m[c.String()]; ok{
       //  continue
@@ -518,7 +649,7 @@ func ExploreNode(gn GameNode) map[string]rune{
     return 'Z'
   }
   //fmt.Printf("\nStart node:\n%v\n", gn.String())
-  f(gn)
+  f(gn, 0)
   //SUMMARY
   //fmt.Printf("Final summary\n")
   //for k, v := range m {
