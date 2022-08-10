@@ -431,7 +431,7 @@ func (p Position) WhichPly() bool{
 // Give a score for White and Black
 func (p Position)Score() (int, int){
   // See out the first 1000 outcomes from here.
-  m, depth := ShallowExploreNode(p, 100)
+  m, depth, leftToExplore := ShallowExploreNode(p, 100)
   w := 0
   b := 0
   //fmt.Printf("The score sheet I saw %v\n", m)
@@ -443,14 +443,30 @@ func (p Position)Score() (int, int){
       b++
     }
   }
+  // Note! A certain BFS may be very shallow and only return say, 20 endgames,
+  // because the position is certainly winning. So it's not correct
+  // to just sum and compare leaf nodes for each outcome.
+  //
+  // By contrast, if you set a limit on how many nodes the BFS can explore,
+  // you might also get too few outcomes.
+  //
+  // We need to weight results by how much of the tree we explored from
+  // that node.
+
   // NOTE! Usually a ply is bool 0 for White to move and 1 for Black to move.
   // However, we usually check children of a node for their scores, and in
   // that case, they should have the same ply as their parent node, until
   // they've *actually been chosen* as a path to go down.
-  if p.Ply {
-    return w-b, depth
+
+  weight := 1
+  if leftToExplore == 0{
+    weight = 1000
   }
-  return b-w, depth
+
+  if p.Ply {
+    return (w-b) * weight, depth
+  }
+  return (b-w) * weight, depth
 }
 
 /*
@@ -458,7 +474,7 @@ Shallow ExploreNode is a BFS.
 Find the first leafLimit bfs outcomes.
 */
 // 21020 00100 44344 00231 00010 |01081924| false ?
-func ShallowExploreNode(gn GameNode, leafLimit int) (map[string]rune, int){
+func ShallowExploreNode(gn GameNode, leafLimit int) (map[string]rune, int, int){
   depth := 0
   shallowestDepth := 100
   currentGeneration := 1
@@ -504,11 +520,14 @@ func ShallowExploreNode(gn GameNode, leafLimit int) (map[string]rune, int){
      if (currentGeneration == 0){
         depth++
         currentGeneration = nextGeneration
+        nextGeneration = 0
       }
   }
-
+  //if (currentGeneration == 0){
+    //fmt.Printf("\nEnding on current Gen %v", currentGeneration)
+  //}
   // After search stuff
-  return m, shallowestDepth
+  return m, shallowestDepth, currentGeneration
 }
 
 /*

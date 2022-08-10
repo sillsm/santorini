@@ -3,7 +3,7 @@ package Santorini
 import (
 	"fmt"
 	"reflect"
-	"sort"
+	_ "sort"
 	"testing"
 )
 
@@ -1404,20 +1404,22 @@ func TestScore1(t *testing.T){
 	//position, e := NewPosition("|0012000100443440022100001|02081823|")
 
 /*
-10020
+01020
 00100
 44344
-00221
-00001
+00321
+00000
 */
+
 	position, e := NewPosition("|0102000100443440032100000|00081922|")
 	//position, e := NewPosition("|1102000100443440022100000|00081923|")
 	fmt.Printf("Outcome %v ,\n", string(position.Outcome()))
 	if e != nil {
 		t.Errorf("Error forming position")
 	}
-	//x := ExploreNode(position, 0)
-	//fmt.Printf("\nFinal map for %v\n %v \n", position.String(), x)
+	x := ExploreNode(position, 0)
+  fmt.Printf("\nFinal map for %v\n %v \n", position.String(), x)
+/*
 	children := position.Children()
 
 
@@ -1437,6 +1439,6 @@ func TestScore1(t *testing.T){
 				fmt.Printf("\nChild %v, score %v, %v, mindepth: %v\n" , l.String(), score, l.WhichPly(), depth)
 				//fmt.Printf("\nChild %v, score %v, %v\n" , l.String(), score, l.WhichPly())
 			}
-
+*/
 
 }
